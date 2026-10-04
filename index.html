@@ -35,7 +35,7 @@
       playerInputs: JSON.parse(localStorage.getItem('flip7_saved_names') || '["", "", ""]'),
       players: [],
       activePlayerId: null,
-      showKeypad: true, // Contrôle l'affichage/masquage du pavé numérique
+      showKeypad: true,
       round: 1,
       targetScore: 200,
       winner: null,
@@ -134,6 +134,7 @@
       }
       
       render();
+      window.scrollTo(0, 0);
     }
 
     function startGame() {
@@ -151,12 +152,21 @@
       state.showKeypad = true;
       state.screen = 'game';
       render();
+      window.scrollTo(0, 0);
     }
 
     function resetLeaderboard() {
       if (confirm("Réinitialiser tous les scores du classement à zéro ?")) {
         state.leaderboard = {};
         localStorage.removeItem('flip7_leaderboard');
+        render();
+      }
+    }
+
+    function clearHistory() {
+      if (confirm("Effacer tout l'historique des parties ?")) {
+        state.history = [];
+        localStorage.removeItem('flip7_history');
         render();
       }
     }
@@ -186,7 +196,7 @@
       if (state.screen === 'home') {
         app.innerHTML = `
           <div class="flex justify-between items-center my-4">
-            <button onclick="state.screen='settings'; render()" class="p-2 rounded-full bg-gray-800 text-gray-300">⚙️️</button>
+            <button onclick="state.screen='settings'; render(); window.scrollTo(0,0);" class="p-2 rounded-full bg-gray-800 text-gray-300">⚙</button>
             <h1 class="text-2xl font-bold text-emerald-400">FLIP 7</h1>
             <button onclick="toggleTheme()" class="p-2 rounded-full bg-gray-800 text-gray-300">${isDark ? '☀️' : '🌙'}</button>
           </div>
@@ -195,9 +205,9 @@
               <div class="w-20 h-20 bg-emerald-500 rounded-2xl mx-auto flex items-center justify-center text-3xl font-black text-white shadow-lg mb-2">7</div>
               <p class="text-sm opacity-60">You play, We calculate</p>
             </div>
-            <button onclick="state.screen='setup'; render()" class="w-full py-4 bg-emerald-500 text-white text-lg font-bold rounded-2xl shadow-lg active:scale-95 transition">NOUVELLE PARTIE</button>
-            <button onclick="state.screen='history'; render()" class="w-full py-3 bg-gray-800 text-gray-200 text-base font-semibold rounded-2xl active:scale-95 transition">Historique des matchs</button>
-            <button onclick="state.screen='standings'; render()" class="w-full py-3 bg-gray-800 text-gray-200 text-base font-semibold rounded-2xl active:scale-95 transition">🏆 Classement Général</button>
+            <button onclick="state.screen='setup'; render(); window.scrollTo(0,0);" class="w-full py-4 bg-emerald-500 text-white text-lg font-bold rounded-2xl shadow-lg active:scale-95 transition">NOUVELLE PARTIE</button>
+            <button onclick="state.screen='history'; render(); window.scrollTo(0,0);" class="w-full py-3 bg-gray-800 text-gray-200 text-base font-semibold rounded-2xl active:scale-95 transition">Historique des matchs</button>
+            <button onclick="state.screen='standings'; render(); window.scrollTo(0,0);" class="w-full py-3 bg-gray-800 text-gray-200 text-base font-semibold rounded-2xl active:scale-95 transition">🏆 Classement Général</button>
           </div>
           <div class="text-center py-4 text-xs text-pink-400 font-medium">Fait par amour pour Adeline &lt;3</div>
         `;
@@ -207,7 +217,7 @@
 
         app.innerHTML = `
           <div class="flex justify-between items-center mb-6">
-            <button onclick="state.screen='home'; render()" class="text-xl">🏠</button>
+            <button onclick="state.screen='home'; render(); window.scrollTo(0,0);" class="text-xl">🏠</button>
             <h2 class="text-xl font-bold">Joueurs (3 min.)</h2>
             <div></div>
           </div>
@@ -235,12 +245,11 @@
 
         app.innerHTML = `
           <div class="flex justify-between items-center mb-3">
-            <button onclick="if(confirm('Quitter la partie ?')) { state.screen='home'; render(); }" class="text-xs bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg font-bold">Quitter</button>
+            <button onclick="if(confirm('Quitter la partie ?')) { state.screen='home'; render(); window.scrollTo(0,0); }" class="text-xs bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg font-bold">Quitter</button>
             <h2 class="text-lg font-bold">Round ${state.round}</h2>
-            <button onclick="state.screen='standings'; render()" class="text-xl">🏆</button>
+            <button onclick="state.screen='standings'; render(); window.scrollTo(0,0);" class="text-xl">🏆</button>
           </div>
 
-          <!-- Liste des Joueurs et Cartes de la manche -->
           <div class="space-y-3 mb-3 flex-1 overflow-y-auto ${state.showKeypad ? 'max-h-[38vh]' : 'max-h-[72vh]'} transition-all duration-300">
             ${state.players.map(p => {
               let score = calculateHandScore(p.hand);
@@ -271,18 +280,15 @@
             }).join('')}
           </div>
 
-          <!-- Indication/Bouton d'ouverture ou masque du clavier -->
           <div class="text-center my-2">
             <button onclick="state.showKeypad = !state.showKeypad; render()" class="text-xs text-gray-400 font-medium hover:text-white flex items-center justify-center mx-auto space-x-1">
               <span>🗜️ ${state.showKeypad ? 'Masquer le pavé de points' : 'Afficher le pavé de points'}</span>
             </button>
           </div>
 
-          <!-- Pavé de Saisie Coulissant / Masquable -->
           ${state.showKeypad ? `
             <div class="bg-gray-800 rounded-t-3xl p-4 shadow-2xl -mx-4 -mb-8 border-t border-gray-700 transition-all">
               <div class="flex justify-between items-center mb-2">
-                <!-- Onglets Joueurs -->
                 <div class="flex overflow-x-auto space-x-2 pb-1 flex-1">
                   ${state.players.map(p => `
                     <button onclick="state.activePlayerId=${p.id}; render()" class="px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${p.id === state.activePlayerId ? 'bg-emerald-500 text-white shadow' : 'bg-gray-700 text-gray-300'}">
@@ -293,7 +299,6 @@
                 <button onclick="state.showKeypad=false; render()" class="text-xs text-gray-400 px-2 py-1">✕</button>
               </div>
 
-              <!-- Cartes numérotées -->
               <div class="grid grid-cols-6 gap-2 mb-2">
                 ${[0,1,2,3,4,5,6,7,8,9,10,11,12].map(num => {
                   let isPicked = activeP.hand.includes(num);
@@ -306,7 +311,6 @@
                 }).join('')}
               </div>
 
-              <!-- Modificateurs -->
               <div class="grid grid-cols-6 gap-2 mb-3">
                 ${['+2','+4','+6','+8','+10','x2'].map(mod => {
                   let isPicked = activeP.hand.includes(mod);
@@ -349,14 +353,14 @@
             </div>
 
             <button onclick="startGame()" class="w-full py-4 bg-emerald-500 text-white font-bold text-lg rounded-2xl shadow active:scale-95 transition mb-3">RECOMMENCER UNE PARTIE</button>
-            <button onclick="state.screen='home'; render()" class="w-full py-3 bg-gray-800 text-gray-300 font-semibold rounded-2xl">Retour à l'accueil</button>
+            <button onclick="state.screen='home'; render(); window.scrollTo(0,0);" class="w-full py-3 bg-gray-800 text-gray-300 font-semibold rounded-2xl">Retour à l'accueil</button>
           </div>
         `;
       } else if (state.screen === 'standings') {
         let entries = Object.entries(state.leaderboard).sort((a, b) => b[1] - a[1]);
         app.innerHTML = `
           <div class="flex justify-between items-center mb-6">
-            <button onclick="state.screen='home'; render()" class="text-xl">🏠</button>
+            <button onclick="state.screen='home'; render(); window.scrollTo(0,0);" class="text-xl">🏠</button>
             <h2 class="text-xl font-bold">Classement Général</h2>
             <div></div>
           </div>
@@ -383,7 +387,7 @@
       } else if (state.screen === 'history') {
         app.innerHTML = `
           <div class="flex justify-between items-center mb-6">
-            <button onclick="state.screen='home'; render()" class="text-xl">🏠</button>
+            <button onclick="state.screen='home'; render(); window.scrollTo(0,0);" class="text-xl">🏠</button>
             <h2 class="text-xl font-bold">Historique</h2>
             <div></div>
           </div>
@@ -399,12 +403,12 @@
               </div>
             `).join('')}
           </div>
-          ${state.history.length > 0 ? `<button onclick="state.history=[]; localStorageremoveItem('flip7_history'); render()" class="w-full py-3 bg-red-500/20 text-red-400 font-semibold rounded-xl">Effacer l'historique</button>` : ''}
+          ${state.history.length > 0 ? `<button onclick="clearHistory()" class="w-full py-3 bg-red-500/20 text-red-400 font-semibold rounded-xl">Effacer l'historique</button>` : ''}
         `;
       } else if (state.screen === 'settings') {
         app.innerHTML = `
           <div class="flex justify-between items-center mb-6">
-            <button onclick="state.screen='home'; render()" class="text-xl">🏠</button>
+            <button onclick="state.screen='home'; render(); window.scrollTo(0,0);" class="text-xl">🏠</button>
             <h2 class="text-xl font-bold">Réglages & Règles</h2>
             <div></div>
           </div>
