@@ -35,6 +35,7 @@
       playerInputs: JSON.parse(localStorage.getItem('flip7_saved_names') || '["", "", ""]'),
       players: [],
       activePlayerId: null,
+      showKeypad: true, // Contrôle l'affichage/masquage du pavé numérique
       round: 1,
       targetScore: 200,
       winner: null,
@@ -65,17 +66,11 @@
       render();
     }
 
-    // Calcul officiel des points selon la règle du jeu :
-    // 1. Somme des cartes Numéro
-    // 2. Multiplié par 2 si carte x2
-    // 3. Ajout des cartes Bonus (+2, +4, +6, +8, +10)
-    // 4. Ajout des +15 points si Flip 7 (7 cartes numérotées)
     function calculateHandScore(hand) {
       let numbers = hand.filter(c => typeof c === 'number');
       let modifiers = hand.filter(c => typeof c === 'string');
       
       let numberSum = numbers.reduce((a, b) => a + b, 0);
-      
       if (modifiers.includes('x2')) {
         numberSum *= 2;
       }
@@ -88,7 +83,6 @@
       });
       
       let flip7Bonus = numbers.length >= 7 ? 15 : 0;
-      
       return numberSum + bonusPoints + flip7Bonus;
     }
 
@@ -154,6 +148,7 @@
       state.activePlayerId = 1;
       state.round = 1;
       state.winner = null;
+      state.showKeypad = true;
       state.screen = 'game';
       render();
     }
@@ -191,7 +186,7 @@
       if (state.screen === 'home') {
         app.innerHTML = `
           <div class="flex justify-between items-center my-4">
-            <button onclick="state.screen='settings'; render()" class="p-2 rounded-full bg-gray-800 text-gray-300">⚙️</button>
+            <button onclick="state.screen='settings'; render()" class="p-2 rounded-full bg-gray-800 text-gray-300">⚙️️</button>
             <h1 class="text-2xl font-bold text-emerald-400">FLIP 7</h1>
             <button onclick="toggleTheme()" class="p-2 rounded-full bg-gray-800 text-gray-300">${isDark ? '☀️' : '🌙'}</button>
           </div>
@@ -239,65 +234,101 @@
         let numCardsCount = activeP.hand.filter(c => typeof c === 'number').length;
 
         app.innerHTML = `
-          <div class="flex justify-between items-center mb-4">
+          <div class="flex justify-between items-center mb-3">
             <button onclick="if(confirm('Quitter la partie ?')) { state.screen='home'; render(); }" class="text-xs bg-red-500/20 text-red-400 px-3 py-1.5 rounded-lg font-bold">Quitter</button>
-            <h2 class="text-lg font-bold">Manche ${state.round}</h2>
+            <h2 class="text-lg font-bold">Round ${state.round}</h2>
             <button onclick="state.screen='standings'; render()" class="text-xl">🏆</button>
           </div>
 
-          <div class="space-y-3 mb-4 overflow-y-auto max-h-[35vh]">
+          <!-- Liste des Joueurs et Cartes de la manche -->
+          <div class="space-y-3 mb-3 flex-1 overflow-y-auto ${state.showKeypad ? 'max-h-[38vh]' : 'max-h-[72vh]'} transition-all duration-300">
             ${state.players.map(p => {
               let score = calculateHandScore(p.hand);
               let isSelected = p.id === state.activePlayerId;
+              let pNumCount = p.hand.filter(c => typeof c === 'number').length;
+              let isFlip7 = pNumCount >= 7;
+
               return `
-                <div onclick="state.activePlayerId=${p.id}; render()" class="p-3 rounded-2xl border-2 ${p.color}${isSelected ? 'bg-gray-800/80 ring-2 ring-emerald-400' : 'bg-gray-800/40'} flex justify-between items-center cursor-pointer">
-                  <div>
-                    <div class="font-bold text-base">${p.name}</div>
-                    <div class="text-xs opacity-60">TOTAL : ${p.totalScore} pts / 200</div>
-                    <div class="flex flex-wrap gap-1 mt-1">
-                      ${p.hand.map(c => `<span onclick="event.stopPropagation(); toggleCard('${c}')" class="px-2 py-0.5 rounded text-xs font-bold ${typeof c === 'number' ? CARD_COLORS[c] : 'bg-orange-500 text-white'}">${c}</span>`).join('')}
+                <div onclick="state.activePlayerId=${p.id}; state.showKeypad=true; render()" class="p-3.5 rounded-2xl border-2 ${p.color}${isSelected ? 'bg-gray-800/90 ring-2 ring-emerald-400' : 'bg-gray-800/40'} flex justify-between items-center cursor-pointer shadow-md transition">
+                  <div class="flex-1 pr-2">
+                    <div class="flex items-center space-x-2">
+                      <span class="font-bold text-base">${p.name}</span>${isFlip7 ? `<span class="bg-gradient-to-r from-orange-500 to-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow animate-pulse">🔥 FLIP 7 (+15)</span>` : ''}
+                    </div>
+                    <div class="text-xs font-semibold opacity-70 mt-0.5">TOTAL <span class="text-emerald-400 font-bold">${p.totalScore}</span></div>
+                    
+                    <div class="flex flex-wrap gap-1.5 mt-2">
+                      ${p.hand.length === 0 ? '<span class="text-xs opacity-40 italic">Aucune carte</span>' : ''}
+                      ${p.hand.map(c => `
+                        <span onclick="event.stopPropagation(); toggleCard('${c}')" class="px-2.5 py-1 rounded-lg text-xs font-extrabold shadow-sm ${typeof c === 'number' ? CARD_COLORS[c] : 'bg-orange-500 text-white'}">
+                          ${c}
+                        </span>
+                      `).join('')}
                     </div>
                   </div>
-                  <div class="text-2xl font-black">${score}</div>
+                  <div class="text-3xl font-black bg-gray-900/60 px-3 py-2 rounded-xl border border-gray-700 min-w-[55px] text-center">${score}</div>
                 </div>
               `;
             }).join('')}
           </div>
 
-          <div class="bg-gray-800 rounded-t-3xl p-4 shadow-2xl -mx-4 -mb-8">
-            <div class="flex overflow-x-auto space-x-2 mb-3 pb-1">
-              ${state.players.map(p => `
-                <button onclick="state.activePlayerId=${p.id}; render()" class="px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${p.id === state.activePlayerId ? 'bg-emerald-500 text-white' : 'bg-gray-700 text-gray-300'}">
-                  ${p.name}
-                </button>
-              `).join('')}
-            </div>
-
-            <div class="grid grid-cols-6 gap-2 mb-2">
-              ${[0,1,2,3,4,5,6,7,8,9,10,11,12].map(num => {
-                let isPicked = activeP.hand.includes(num);
-                let disabled = numCardsCount >= 7 && !isPicked;
-                return `
-                  <button onclick="toggleCard(${num})" ${disabled ? 'disabled' : ''} class="h-11 rounded-xl font-bold text-base flex items-center justify-center ${CARD_COLORS[num]} ${isPicked ? 'ring-4 ring-white scale-95' : ''} ${disabled ? 'opacity-30' : 'active:scale-90'} transition">
-                    ${num}
-                  </button>
-                `;
-              }).join('')}
-            </div>
-
-            <div class="grid grid-cols-6 gap-2 mb-4">
-              ${['+2','+4','+6','+8','+10','x2'].map(mod => {
-                let isPicked = activeP.hand.includes(mod);
-                return `
-                  <button onclick="toggleCard('${mod}')" class="h-11 rounded-xl font-bold text-sm bg-orange-500 text-white flex items-center justify-center ${isPicked ? 'ring-4 ring-white scale-95' : ''} active:scale-90 transition">
-                    ${mod}
-                  </button>
-                `;
-              }).join('')}
-            </div>
-
-            <button onclick="validateRound()" class="w-full py-3 bg-emerald-500 text-white font-bold rounded-xl shadow">Valider la manche</button>
+          <!-- Indication/Bouton d'ouverture ou masque du clavier -->
+          <div class="text-center my-2">
+            <button onclick="state.showKeypad = !state.showKeypad; render()" class="text-xs text-gray-400 font-medium hover:text-white flex items-center justify-center mx-auto space-x-1">
+              <span>🗜️ ${state.showKeypad ? 'Masquer le pavé de points' : 'Afficher le pavé de points'}</span>
+            </button>
           </div>
+
+          <!-- Pavé de Saisie Coulissant / Masquable -->
+          ${state.showKeypad ? `
+            <div class="bg-gray-800 rounded-t-3xl p-4 shadow-2xl -mx-4 -mb-8 border-t border-gray-700 transition-all">
+              <div class="flex justify-between items-center mb-2">
+                <!-- Onglets Joueurs -->
+                <div class="flex overflow-x-auto space-x-2 pb-1 flex-1">
+                  ${state.players.map(p => `
+                    <button onclick="state.activePlayerId=${p.id}; render()" class="px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${p.id === state.activePlayerId ? 'bg-emerald-500 text-white shadow' : 'bg-gray-700 text-gray-300'}">
+                      ${p.name}
+                    </button>
+                  `).join('')}
+                </div>
+                <button onclick="state.showKeypad=false; render()" class="text-xs text-gray-400 px-2 py-1">✕</button>
+              </div>
+
+              <!-- Cartes numérotées -->
+              <div class="grid grid-cols-6 gap-2 mb-2">
+                ${[0,1,2,3,4,5,6,7,8,9,10,11,12].map(num => {
+                  let isPicked = activeP.hand.includes(num);
+                  let disabled = numCardsCount >= 7 && !isPicked;
+                  return `
+                    <button onclick="toggleCard(${num})" ${disabled ? 'disabled' : ''} class="h-11 rounded-xl font-bold text-base flex items-center justify-center ${CARD_COLORS[num]} ${isPicked ? 'ring-4 ring-white scale-95 shadow-lg' : ''} ${disabled ? 'opacity-30' : 'active:scale-90'} transition">
+                      ${num}
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+
+              <!-- Modificateurs -->
+              <div class="grid grid-cols-6 gap-2 mb-3">
+                ${['+2','+4','+6','+8','+10','x2'].map(mod => {
+                  let isPicked = activeP.hand.includes(mod);
+                  return `
+                    <button onclick="toggleCard('${mod}')" class="h-11 rounded-xl font-bold text-sm bg-orange-500 text-white flex items-center justify-center ${isPicked ? 'ring-4 ring-white scale-95 shadow-lg' : ''} active:scale-90 transition">
+                      ${mod}
+                    </button>
+                  `;
+                }).join('')}
+              </div>
+
+              <button onclick="validateRound()" class="w-full py-3.5 bg-emerald-500 text-white font-bold rounded-xl shadow-lg active:scale-98 transition flex items-center justify-center space-x-2">
+                <span>Valider la manche</span>
+                <span>✓</span>
+              </button>
+            </div>
+          ` : `
+            <button onclick="validateRound()" class="w-full py-4 bg-emerald-500 text-white font-bold text-base rounded-2xl shadow-lg active:scale-98 transition flex items-center justify-center space-x-2 my-2">
+              <span>Valider la manche</span>
+              <span>✓</span>
+            </button>
+          `}
         `;
       } else if (state.screen === 'victory') {
         let sorted = [...state.players].sort((a, b) => b.totalScore - a.totalScore);
@@ -307,7 +338,7 @@
             <h2 class="text-3xl font-black text-emerald-400 mb-2">Victoire de ${state.winner.name} !</h2>
             <p class="text-gray-400 mb-8">Score atteint : ${state.winner.totalScore} pts / 200</p>
             
-            <div class="w-full space-y-2 mb-8 bg-gray-800 p-4 rounded-2xl">
+            <div class="w-full space-y-2 mb-8 bg-gray-800 p-4 rounded-2xl border border-gray-700">
               <h3 class="text-sm font-bold opacity-60 mb-2">Score final de la partie</h3>
               ${sorted.map((p, i) => `
                 <div class="flex justify-between items-center py-1">
@@ -317,7 +348,7 @@
               `).join('')}
             </div>
 
-            <button onclick="startGame()" class="w-full py-4 bg-emerald-500 text-white font-bold text-lg rounded-2xl shadow active:scale-95 transition mb-3">RECOUMENCER UNE PARTIE</button>
+            <button onclick="startGame()" class="w-full py-4 bg-emerald-500 text-white font-bold text-lg rounded-2xl shadow active:scale-95 transition mb-3">RECOMMENCER UNE PARTIE</button>
             <button onclick="state.screen='home'; render()" class="w-full py-3 bg-gray-800 text-gray-300 font-semibold rounded-2xl">Retour à l'accueil</button>
           </div>
         `;
@@ -333,7 +364,7 @@
           <div class="space-y-3 mb-6 flex-1 overflow-y-auto">
             ${entries.length === 0 ? '<p class="text-center opacity-50 py-8">Aucun score enregistré</p>' : ''}
             ${entries.map(([name, score], rank) => `
-              <div class="p-4 rounded-2xl bg-gray-800 flex justify-between items-center">
+              <div class="p-4 rounded-2xl bg-gray-800 flex justify-between items-center border border-gray-700">
                 <div class="flex items-center space-x-3">
                   <span class="text-lg font-black ${rank===0 ? 'text-yellow-400' : 'text-gray-400'}">#${rank+1}</span>
                   <span class="font-bold text-lg">${name}</span>
@@ -359,7 +390,7 @@
           <div class="space-y-3 mb-6 flex-1 overflow-y-auto">
             ${state.history.length === 0 ? '<p class="text-center opacity-50 py-8">Aucun match enregistré</p>' : ''}
             ${state.history.map(m => `
-              <div class="p-4 rounded-2xl bg-gray-800">
+              <div class="p-4 rounded-2xl bg-gray-800 border border-gray-700">
                 <div class="flex justify-between text-xs opacity-60 mb-1">
                   <span>${m.date}</span>
                   <span>🏆 Vainqueur: ${m.winner}</span>
@@ -368,7 +399,7 @@
               </div>
             `).join('')}
           </div>
-          ${state.history.length > 0 ? `<button onclick="state.history=[]; localStorage.removeItem('flip7_history'); render()" class="w-full py-3 bg-red-500/20 text-red-400 font-semibold rounded-xl">Effacer l'historique</button>` : ''}
+          ${state.history.length > 0 ? `<button onclick="state.history=[]; localStorageremoveItem('flip7_history'); render()" class="w-full py-3 bg-red-500/20 text-red-400 font-semibold rounded-xl">Effacer l'historique</button>` : ''}
         `;
       } else if (state.screen === 'settings') {
         app.innerHTML = `
@@ -378,11 +409,11 @@
             <div></div>
           </div>
           <div class="space-y-6">
-            <div class="p-4 rounded-2xl bg-gray-800 flex justify-between items-center">
+            <div class="p-4 rounded-2xl bg-gray-800 flex justify-between items-center border border-gray-700">
               <span class="font-semibold">Thème Sombre</span>
               <button onclick="toggleTheme()" class="px-4 py-2 bg-emerald-500 text-white font-bold rounded-xl">${isDark ? 'ON' : 'OFF'}</button>
             </div>
-            <div class="p-4 rounded-2xl bg-gray-800 space-y-2 text-sm text-gray-300">
+            <div class="p-4 rounded-2xl bg-gray-800 space-y-2 text-sm text-gray-300 border border-gray-700">
               <h3 class="font-bold text-white text-base">Règles du Flip 7</h3>
               <p>• <strong>Calcul du score</strong> : (Somme des cartes Numéro × 2 si x2) + Bonus de points + 15 pts si Flip 7.</p>
               <p>• <strong>Bonus Flip 7 (+15 pts)</strong> : Accordé dès qu'un joueur accumule 7 cartes numérotées distinctes.</p>
