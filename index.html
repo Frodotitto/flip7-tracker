@@ -66,6 +66,13 @@
       render();
     }
 
+    // Trie la main du joueur par ordre numérique
+    function getSortedHand(hand) {
+      let numbers = hand.filter(c => typeof c === 'number').sort((a, b) => a - b);
+      let modifiers = hand.filter(c => typeof c === 'string').sort((a, b) => a.localeCompare(b));
+      return [...numbers, ...modifiers];
+    }
+
     function calculateHandScore(hand) {
       let numbers = hand.filter(c => typeof c === 'number');
       let modifiers = hand.filter(c => typeof c === 'string');
@@ -252,6 +259,7 @@
 
           <div class="space-y-3 mb-3 flex-1 overflow-y-auto ${state.showKeypad ? 'max-h-[38vh]' : 'max-h-[72vh]'} transition-all duration-300">
             ${state.players.map(p => {
+              let sortedHand = getSortedHand(p.hand);
               let score = calculateHandScore(p.hand);
               let isSelected = p.id === state.activePlayerId;
               let pNumCount = p.hand.filter(c => typeof c === 'number').length;
@@ -266,9 +274,9 @@
                     <div class="text-xs font-semibold opacity-70 mt-0.5">TOTAL <span class="text-emerald-400 font-bold">${p.totalScore}</span></div>
                     
                     <div class="flex flex-wrap gap-1.5 mt-2">
-                      ${p.hand.length === 0 ? '<span class="text-xs opacity-40 italic">Aucune carte</span>' : ''}
-                      ${p.hand.map(c => `
-                        <span onclick="event.stopPropagation(); toggleCard('${c}')" class="px-2.5 py-1 rounded-lg text-xs font-extrabold shadow-sm ${typeof c === 'number' ? CARD_COLORS[c] : 'bg-orange-500 text-white'}">
+                      ${sortedHand.length === 0 ? '<span class="text-xs opacity-40 italic">Aucune carte</span>' : ''}
+                      ${sortedHand.map(c => `
+                        <span onclick="event.stopPropagation(); toggleCard(${typeof c === 'number' ? c : `'${c}'`})" class="px-2.5 py-1 rounded-lg text-xs font-extrabold shadow-sm ${typeof c === 'number' ? CARD_COLORS[c] : 'bg-orange-500 text-white'}">
                           ${c}
                         </span>
                       `).join('')}
