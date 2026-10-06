@@ -26,7 +26,7 @@
   </style>
 </head>
 <body class="bg-gray-900 text-white min-h-screen transition-colors duration-200">
-  <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col justify-between p-3 pb-6"></div>
+  <div id="app" class="max-w-md mx-auto min-h-screen flex flex-col justify-between p-3 pb-6 relative overflow-hidden"></div>
 
   <script>
     let state = {
@@ -43,6 +43,8 @@
       leaderboard: JSON.parse(localStorage.getItem('flip7_leaderboard') || '{}')
     };
 
+    let animationFrameId = null;
+
     const CARD_COLORS = {
       0: 'bg-pink-500 text-white', 1: 'bg-gray-500 text-white', 2: 'bg-lime-500 text-white',
       3: 'bg-fuchsia-500 text-white', 4: 'bg-cyan-500 text-white', 5: 'bg-emerald-500 text-white',
@@ -51,21 +53,9 @@
       12: 'bg-amber-700 text-white'
     };
 
-    // Nombre d'exemplaires max de chaque carte dans la pioche selon la valeur
     const MAX_CARD_COUNTS = {
-      0: 1,
-      1: 1,
-      2: 2,
-      3: 3,
-      4: 4,
-      5: 5,
-      6: 6,
-      7: 7,
-      8: 8,
-      9: 9,
-      10: 10,
-      11: 11,
-      12: 12
+      0: 1, 1: 1, 2: 2, 3: 3, 4: 4, 5: 5, 6: 6,
+      7: 7, 8: 8, 9: 9, 10: 10, 11: 11, 12: 12
     };
 
     const PLAYER_COLORS = [
@@ -98,6 +88,124 @@
       setThemeMode(current ? 'light' : 'dark');
     }
 
+    function stopCelebrationAnimation() {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+    }
+
+    // Animation festive sur Canvas (Confettis & Feux d'artifice)
+    function startCelebrationAnimation() {
+      stopCelebrationAnimation();
+      const canvas = document.getElementById('celebration-canvas');
+      if (!canvas) return;
+      
+      const ctx = canvas.getContext('2d');
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+
+      const type = Math.floor(Math.random() * 3); // 0: Confettis, 1: Feux d'artifice, 2: Mixte
+      const colors = ['#10b981', '#f97316', '#ec4899', '#8b5cf6', '#3b82f6', '#eab308', '#ef4444'];
+      
+      let particles = [];
+      let fireworks = [];
+
+      // Initialiser Confettis
+      if (type === 0 || type === 2) {
+        for (let i = 0; i < 90; i++) {
+          particles.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * canvas.height - canvas.height,
+            size: Math.random() * 7 + 4,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            speedY: Math.random() * 3 + 2,
+            speedX: Math.random() * 2 - 1,
+            rotation: Math.random() * 360,
+            rotSpeed: Math.random() * 6 - 3
+          });
+        }
+      }
+
+      function createFirework() {
+        const targetX = Math.random() * (canvas.width * 0.8) + canvas.width * 0.1;
+        const targetY = Math.random() * (canvas.height * 0.4) + canvas.height * 0.1;
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        
+        for (let i = 0; i < 40; i++) {
+          const angle = (Math.PI * 2 / 40) * i;
+          const speed = Math.random() * 4 + 2;
+          fireworks.push({
+            x: targetX,
+            y: targetY,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            alpha: 1,
+            size: Math.random() * 3 + 2,
+            color: color
+          });
+        }
+      }
+
+      let fireworkTimer = 0;
+
+      function loop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Animer Confettis
+        particles.forEach(p => {
+          p.y += p.speedY;
+          p.x += p.speedX;
+          p.rotation += p.rotSpeed;
+
+          if (p.y > canvas.height) {
+            p.y = -10;
+            p.x = Math.random() * canvas.width;
+          }
+
+          ctx.save();
+          ctx.translate(p.x, p.y);
+          ctx.rotate((p.rotation * Math.PI) / 180);
+          ctx.fillStyle = p.color;
+          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+          ctx.restore();
+        });
+
+        // Animer Feux d'artifice
+        if (type === 1 || type === 2) {
+          fireworkTimer++;
+          if (fireworkTimer % 25 === 0) {
+            createFirework();
+          }
+
+          for (let i = fireworks.length - 1; i >= 0; i--) {
+            let f = fireworks[i];
+            f.x += f.vx;
+            f.y += f.vy;
+            f.vy += 0.04; // Gravité
+            f.alpha -= 0.015;
+
+            if (f.alpha <= 0) {
+              fireworks.splice(i, 1);
+              continue;
+            }
+
+            ctx.save();
+            ctx.globalAlpha = f.alpha;
+            ctx.fillStyle = f.color;
+            ctx.beginPath();
+            ctx.arc(f.x, f.y, f.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+        }
+
+        animationFrameId = requestAnimationFrame(loop);
+      }
+
+      loop();
+    }
+
     function getSortedHand(hand) {
       let numbers = hand.filter(c => typeof c === 'number').sort((a, b) => a - b);
       let modifiers = hand.filter(c => typeof c === 'string').sort((a, b) => a.localeCompare(b));
@@ -124,7 +232,6 @@
       return numberSum + bonusPoints + flip7Bonus;
     }
 
-    // Compte l'utilisation de chaque carte (chiffres et modificateurs) sur l'ensemble du round
     function getGlobalCardUsage() {
       let usage = {};
       state.players.forEach(p => {
@@ -145,14 +252,11 @@
         let globalUsage = getGlobalCardUsage();
         
         if (typeof val === 'string') {
-          // Bloquer les modificateurs uniques (1 seul par manche)
           if ((globalUsage[val] || 0) >= 1) return;
         } else if (typeof val === 'number') {
-          // Bloquer les cartes numérotées si le stock max du paquet est atteint
           let maxAllowed = MAX_CARD_COUNTS[val];
           if ((globalUsage[val] || 0) >= maxAllowed) return;
 
-          // Règle joueur : pas de doublon dans une même main et max 7 cartes
           if (p.hand.includes(val)) return;
           let currentNumbers = p.hand.filter(c => typeof c === 'number');
           if (currentNumbers.length >= 7) return;
@@ -252,6 +356,7 @@
     }
 
     function render() {
+      stopCelebrationAnimation();
       const app = document.getElementById('app');
       const isDark = isDarkModeActive();
       document.documentElement.className = isDark ? 'dark' : '';
@@ -262,7 +367,7 @@
           <div class="flex justify-between items-center my-3">
             <button onclick="state.screen='settings'; render(); window.scrollTo(0,0);" class="p-2 rounded-full ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-200 text-gray-700'}">⚙</button>
             <h1 class="text-2xl font-bold text-emerald-500">FLIP 7</h1>
-            <button onclick="toggleTheme()" class="p-2 rounded-full ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-200 text-gray-700'}">${isDark ? '☀️' : '🌙'}</button>
+            <button onclick="toggleTheme()" class="p-2 rounded-full ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-200 text-gray-700'}">${isDark ? '☀️️' : '🌙'}</button>
           </div>
           <div class="flex-1 flex flex-col justify-center space-y-4 my-8">
             <div class="text-center mb-6">
@@ -368,17 +473,12 @@
                 <button onclick="state.showKeypad=false; render()" class="text-xs opacity-50 px-2 py-0.5">✕</button>
               </div>
 
-              <!-- Cartes numérotées (Grisées si stock épuisé dans la manche) -->
+              <!-- Cartes numérotées -->
               <div class="grid grid-cols-6 gap-1.5 mb-2">
                 ${[0,1,2,3,4,5,6,7,8,9,10,11,12].map(num => {
                   let isPickedByActive = activeP.hand.includes(num);
                   let currentGlobalCount = globalUsage[num] || 0;
                   let maxAllowed = MAX_CARD_COUNTS[num];
-                  
-                  // Une carte est désactivée si :
-                  // 1. Le stock global de la pioche pour cette carte est épuisé (et que le joueur actif ne l'a pas déjà en main)
-                  // 2. OU le joueur actif a déjà 7 cartes (et ne possède pas déjà cette carte)
-                  // 3. OU le joueur actif possède DÉJÀ cette carte (doublon interdit dans sa propre main)
                   let isStockDepleted = currentGlobalCount >= maxAllowed && !isPickedByActive;
                   let isHandFull = numCardsCount >= 7 && !isPickedByActive;
                   let isDisabled = isStockDepleted || isHandFull;
@@ -391,7 +491,7 @@
                 }).join('')}
               </div>
 
-              <!-- Modificateurs (Grisés si déjà piochés) -->
+              <!-- Modificateurs -->
               <div class="grid grid-cols-6 gap-1.5 mb-2.5">
                 ${['+2','+4','+6','+8','+10','x2'].map(mod => {
                   let isPickedByActive = activeP.hand.includes(mod);
@@ -421,25 +521,30 @@
       } else if (state.screen === 'victory') {
         let sorted = [...state.players].sort((a, b) => b.totalScore - a.totalScore);
         app.innerHTML = `
-          <div class="flex-1 flex flex-col justify-center items-center text-center my-8">
-            <div class="text-6xl mb-4">🎉</div>
-            <h2 class="text-3xl font-black text-emerald-500 mb-2">Victoire de ${state.winner.name} !</h2>
-            <p class="opacity-60 mb-8">Score atteint : ${state.winner.totalScore} pts / 200</p>
+          <!-- Canvas de Célébration (Confettis/Feux d'artifice) -->
+          <canvas id="celebration-canvas" class="fixed inset-0 pointer-events-none z-10"></canvas>
+
+          <div class="flex-1 flex flex-col justify-center items-center text-center my-6 z-20 relative">
+            <div class="text-6xl mb-3 animate-bounce">🎉</div>
+            <h2 class="text-3xl font-black text-emerald-500 mb-1">Victoire de ${state.winner.name} !</h2>
+            <p class="opacity-60 mb-6">Score atteint : ${state.winner.totalScore} pts / 200</p>
             
-            <div class="w-full space-y-2 mb-8 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} p-4 rounded-2xl border shadow-sm">
+            <div class="w-full space-y-2 mb-6 ${isDark ? 'bg-gray-800/90 border-gray-700' : 'bg-white/90 border-gray-200'} p-4 rounded-2xl border shadow-lg backdrop-blur">
               <h3 class="text-sm font-bold opacity-60 mb-2">Score final de la partie</h3>
               ${sorted.map((p, i) => `
-                <div class="flex justify-between items-center py-1">
+                <div class="flex justify-between items-center py-1 border-b border-gray-700/20 last:border-0">
                   <span class="font-semibold">${i+1}.${p.name}</span>
                   <span class="font-bold text-emerald-500">${p.totalScore} pts</span>
                 </div>
               `).join('')}
             </div>
 
-            <button onclick="startGame()" class="w-full py-4 bg-emerald-500 text-white font-bold text-lg rounded-2xl shadow active:scale-95 transition mb-3">RECOMMENCER UNE PARTIE</button>
+            <button onclick="startGame()" class="w-full py-4 bg-emerald-500 text-white font-bold text-lg rounded-2xl shadow-lg active:scale-95 transition mb-3">RECOMMENCER UNE PARTIE</button>
             <button onclick="state.screen='home'; render(); window.scrollTo(0,0);" class="w-full py-3 ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-200 text-gray-700'} font-semibold rounded-2xl">Retour à l'accueil</button>
           </div>
         `;
+        // Lancer la fête !
+        setTimeout(startCelebrationAnimation, 50);
       } else if (state.screen === 'standings') {
         let entries = Object.entries(state.leaderboard).sort((a, b) => b[1] - a[1]);
         app.innerHTML = `
