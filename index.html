@@ -30,7 +30,7 @@
 
   <script>
     let state = {
-      themeMode: localStorage.getItem('flip7_theme_mode') || 'system', // 'system', 'dark', 'light'
+      themeMode: localStorage.getItem('flip7_theme_mode') || 'system',
       screen: 'home', // 'home', 'setup', 'game', 'victory', 'standings', 'history', 'settings'
       playerInputs: JSON.parse(localStorage.getItem('flip7_saved_names') || '["", "", ""]'),
       players: [],
@@ -51,6 +51,23 @@
       12: 'bg-amber-700 text-white'
     };
 
+    // Nombre d'exemplaires max de chaque carte dans la pioche selon la valeur
+    const MAX_CARD_COUNTS = {
+      0: 1,
+      1: 1,
+      2: 2,
+      3: 3,
+      4: 4,
+      5: 5,
+      6: 6,
+      7: 7,
+      8: 8,
+      9: 9,
+      10: 10,
+      11: 11,
+      12: 12
+    };
+
     const PLAYER_COLORS = [
       'border-emerald-500 text-emerald-400',
       'border-blue-500 text-blue-400',
@@ -60,7 +77,6 @@
       'border-pink-500 text-pink-400'
     ];
 
-    // Écoute des changements de thème du téléphone en temps réel
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
       if (state.themeMode === 'system') render();
     });
@@ -82,7 +98,6 @@
       setThemeMode(current ? 'light' : 'dark');
     }
 
-    // Trie la main du joueur par ordre numérique
     function getSortedHand(hand) {
       let numbers = hand.filter(c => typeof c === 'number').sort((a, b) => a - b);
       let modifiers = hand.filter(c => typeof c === 'string').sort((a, b) => a.localeCompare(b));
@@ -109,16 +124,15 @@
       return numberSum + bonusPoints + flip7Bonus;
     }
 
-    function getAllUsedModifiers() {
-      let used = new Set();
+    // Compte l'utilisation de chaque carte (chiffres et modificateurs) sur l'ensemble du round
+    function getGlobalCardUsage() {
+      let usage = {};
       state.players.forEach(p => {
-        p.hand.forEach(c => {
-          if (typeof c === 'string') {
-            used.add(c);
-          }
+        p.hand.forEach(card => {
+          usage[card] = (usage[card] || 0) + 1;
         });
       });
-      return used;
+      return usage;
     }
 
     function toggleCard(val) {
@@ -128,12 +142,22 @@
       if (idx !== -1) {
         p.hand.splice(idx, 1);
       } else {
+        let globalUsage = getGlobalCardUsage();
+        
         if (typeof val === 'string') {
-          let usedMods = getAllUsedModifiers();
-          if (usedMods.has(val)) return;
+          // Bloquer les modificateurs uniques (1 seul par manche)
+          if ((globalUsage[val] || 0) >= 1) return;
+        } else if (typeof val === 'number') {
+          // Bloquer les cartes numérotées si le stock max du paquet est atteint
+          let maxAllowed = MAX_CARD_COUNTS[val];
+          if ((globalUsage[val] || 0) >= maxAllowed) return;
+
+          // Règle joueur : pas de doublon dans une même main et max 7 cartes
+          if (p.hand.includes(val)) return;
+          let currentNumbers = p.hand.filter(c => typeof c === 'number');
+          if (currentNumbers.length >= 7) return;
         }
-        let currentNumbers = p.hand.filter(c => typeof c === 'number');
-        if (typeof val === 'number' && currentNumbers.length >= 7) return;
+        
         p.hand.push(val);
       }
       render();
@@ -283,7 +307,7 @@
         let sortedPlayers = [...state.players].sort((a, b) => b.totalScore - a.totalScore);
         let activeP = state.players.find(p => p.id === state.activePlayerId) || sortedPlayers[0];
         let numCardsCount = activeP.hand.filter(c => typeof c === 'number').length;
-        let usedModifiersInRound = getAllUsedModifiers();
+        let globalUsage = getGlobalCardUsage();
 
         app.innerHTML = `
           <div class="flex justify-between items-center mb-2">
@@ -344,28 +368,38 @@
                 <button onclick="state.showKeypad=false; render()" class="text-xs opacity-50 px-2 py-0.5">✕</button>
               </div>
 
-              <!-- Cartes numérotées -->
+              <!-- Cartes numérotées (Grisées si stock épuisé dans la manche) -->
               <div class="grid grid-cols-6 gap-1.5 mb-2">
                 ${[0,1,2,3,4,5,6,7,8,9,10,11,12].map(num => {
-                  let isPicked = activeP.hand.includes(num);
-                  let disabled = numCardsCount >= 7 && !isPicked;
+                  let isPickedByActive = activeP.hand.includes(num);
+                  let currentGlobalCount = globalUsage[num] || 0;
+                  let maxAllowed = MAX_CARD_COUNTS[num];
+                  
+                  // Une carte est désactivée si :
+                  // 1. Le stock global de la pioche pour cette carte est épuisé (et que le joueur actif ne l'a pas déjà en main)
+                  // 2. OU le joueur actif a déjà 7 cartes (et ne possède pas déjà cette carte)
+                  // 3. OU le joueur actif possède DÉJÀ cette carte (doublon interdit dans sa propre main)
+                  let isStockDepleted = currentGlobalCount >= maxAllowed && !isPickedByActive;
+                  let isHandFull = numCardsCount >= 7 && !isPickedByActive;
+                  let isDisabled = isStockDepleted || isHandFull;
+
                   return `
-                    <button onclick="toggleCard(${num})" ${disabled ? 'disabled' : ''} class="h-10 rounded-lg font-bold text-sm flex items-center justify-center ${CARD_COLORS[num]} ${isPicked ? 'ring-4 ring-white scale-95 shadow' : ''} ${disabled ? 'opacity-30' : 'active:scale-90'} transition">
+                    <button onclick="toggleCard(${num})" ${isDisabled ? 'disabled' : ''} class="h-10 rounded-lg font-bold text-sm flex items-center justify-center transition ${CARD_COLORS[num]} ${isPickedByActive ? 'ring-4 ring-white scale-95 shadow' : isDisabled ? 'opacity-20 cursor-not-allowed grayscale' : 'active:scale-90'}">
                       ${num}
                     </button>
                   `;
                 }).join('')}
               </div>
 
-              <!-- Modificateurs -->
+              <!-- Modificateurs (Grisés si déjà piochés) -->
               <div class="grid grid-cols-6 gap-1.5 mb-2.5">
                 ${['+2','+4','+6','+8','+10','x2'].map(mod => {
                   let isPickedByActive = activeP.hand.includes(mod);
-                  let isPickedByAny = usedModifiersInRound.has(mod);
+                  let isPickedByAny = (globalUsage[mod] || 0) >= 1;
                   let isDisabled = isPickedByAny && !isPickedByActive;
 
                   return `
-                    <button onclick="toggleCard('${mod}')" ${isDisabled ? 'disabled' : ''} class="h-10 rounded-lg font-bold text-xs flex items-center justify-center transition ${isPickedByActive ? 'bg-orange-500 text-white ring-4 ring-white scale-95 shadow' : isDisabled ? 'bg-gray-500/30 text-gray-400 opacity-30 cursor-not-allowed' : 'bg-orange-500 text-white active:scale-90'}">
+                    <button onclick="toggleCard('${mod}')" ${isDisabled ? 'disabled' : ''} class="h-10 rounded-lg font-bold text-xs flex items-center justify-center transition ${isPickedByActive ? 'bg-orange-500 text-white ring-4 ring-white scale-95 shadow' : isDisabled ? 'bg-gray-500/30 text-gray-400 opacity-20 cursor-not-allowed' : 'bg-orange-500 text-white active:scale-90'}">
                       ${mod}
                     </button>
                   `;
@@ -474,8 +508,8 @@
 
             <div class="p-4 rounded-2xl ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} border shadow-sm space-y-2 text-sm opacity-80">
               <h3 class="font-bold opacity-100 text-base mb-1">Règles du Flip 7</h3>
+              <p>• <strong>Décompte des cartes</strong> : Le nombre de cartes dans la pioche correspond à la valeur de la carte (ex: 12 fois le 12, 1 fois le 0, 1 fois le 1).</p>
               <p>• <strong>Calcul du score</strong> : (Somme des cartes Numéro × 2 si x2) + Bonus de points + 15 pts si Flip 7.</p>
-              <p>• <strong>Bonus Flip 7 (+15 pts)</strong> : Accordé dès qu'un joueur accumule 7 cartes numérotées distinctes.</p>
               <p>• <strong>Fin de partie</strong> : Déclenchée automatiquement dès qu'un joueur atteint 200 points.</p>
             </div>
           </div>
