@@ -93,6 +93,19 @@
       return numberSum + bonusPoints + flip7Bonus;
     }
 
+    // Récupère l'ensemble des modificateurs déjà pris par TOUS les joueurs dans le round en cours
+    function getAllUsedModifiers() {
+      let used = new Set();
+      state.players.forEach(p => {
+        p.hand.forEach(c => {
+          if (typeof c === 'string') {
+            used.add(c);
+          }
+        });
+      });
+      return used;
+    }
+
     function toggleCard(val) {
       let p = state.players.find(x => x.id === state.activePlayerId);
       if (!p) return;
@@ -100,6 +113,11 @@
       if (idx !== -1) {
         p.hand.splice(idx, 1);
       } else {
+        // Bloquer l'ajout d'un bonus s'il a déjà été attribué à un autre joueur dans ce round
+        if (typeof val === 'string') {
+          let usedMods = getAllUsedModifiers();
+          if (usedMods.has(val)) return;
+        }
         let currentNumbers = p.hand.filter(c => typeof c === 'number');
         if (typeof val === 'number' && currentNumbers.length >= 7) return;
         p.hand.push(val);
@@ -247,10 +265,10 @@
           </button>
         `;
       } else if (state.screen === 'game') {
-        // Tri dynamique des joueurs par score total décroissant
         let sortedPlayers = [...state.players].sort((a, b) => b.totalScore - a.totalScore);
         let activeP = state.players.find(p => p.id === state.activePlayerId) || sortedPlayers[0];
         let numCardsCount = activeP.hand.filter(c => typeof c === 'number').length;
+        let usedModifiersInRound = getAllUsedModifiers();
 
         app.innerHTML = `
           <div class="flex justify-between items-center mb-2">
@@ -324,12 +342,15 @@
                 }).join('')}
               </div>
 
-              <!-- Modificateurs (Grisés si déjà utilisés) -->
+              <!-- Modificateurs (Grisés et désactivés si déjà attribués dans la manche) -->
               <div class="grid grid-cols-6 gap-1.5 mb-2.5">
                 ${['+2','+4','+6','+8','+10','x2'].map(mod => {
-                  let isPicked = activeP.hand.includes(mod);
+                  let isPickedByActive = activeP.hand.includes(mod);
+                  let isPickedByAny = usedModifiersInRound.has(mod);
+                  let isDisabled = isPickedByAny && !isPickedByActive; // Grisé si un AUTRE joueur possède ce bonus
+
                   return `
-                    <button onclick="toggleCard('${mod}')" class="h-10 rounded-lg font-bold text-xs bg-orange-500 text-white flex items-center justify-center ${isPicked ? 'ring-4 ring-white scale-95 shadow' : ''} active:scale-90 transition">
+                    <button onclick="toggleCard('${mod}')" ${isDisabled ? 'disabled' : ''} class="h-10 rounded-lg font-bold text-xs flex items-center justify-center transition ${isPickedByActive ? 'bg-orange-500 text-white ring-4 ring-white scale-95 shadow' : isDisabled ? 'bg-gray-700 text-gray-500 opacity-30 cursor-not-allowed' : 'bg-orange-500 text-white active:scale-90'}">
                       ${mod}
                     </button>
                   `;
