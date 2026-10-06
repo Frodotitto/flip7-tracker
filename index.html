@@ -31,7 +31,7 @@
   <script>
     let state = {
       themeMode: localStorage.getItem('flip7_theme_mode') || 'system',
-      screen: 'home', // 'home', 'setup', 'game', 'victory', 'standings', 'history', 'settings'
+      screen: 'home',
       playerInputs: JSON.parse(localStorage.getItem('flip7_saved_names') || '["", "", ""]'),
       players: [],
       activePlayerId: null,
@@ -43,7 +43,7 @@
       leaderboard: JSON.parse(localStorage.getItem('flip7_leaderboard') || '{}')
     };
 
-    let animationFrameId = null;
+    let animationIntervalId = null;
 
     const CARD_COLORS = {
       0: 'bg-pink-500 text-white', 1: 'bg-gray-500 text-white', 2: 'bg-lime-500 text-white',
@@ -89,121 +89,126 @@
     }
 
     function stopCelebrationAnimation() {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = null;
+      if (animationIntervalId) {
+        clearInterval(animationIntervalId);
+        animationIntervalId = null;
       }
     }
 
-    // Animation festive sur Canvas (Confettis & Feux d'artifice)
+    // Animation festive compatible iOS WebApp / Safari Standalone
     function startCelebrationAnimation() {
       stopCelebrationAnimation();
-      const canvas = document.getElementById('celebration-canvas');
-      if (!canvas) return;
       
-      const ctx = canvas.getContext('2d');
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-
-      const type = Math.floor(Math.random() * 3); // 0: Confettis, 1: Feux d'artifice, 2: Mixte
-      const colors = ['#10b981', '#f97316', '#ec4899', '#8b5cf6', '#3b82f6', '#eab308', '#ef4444'];
-      
-      let particles = [];
-      let fireworks = [];
-
-      // Initialiser Confettis
-      if (type === 0 || type === 2) {
-        for (let i = 0; i < 90; i++) {
-          particles.push({
-            x: Math.random() * canvas.width,
-            y: Math.random() * canvas.height - canvas.height,
-            size: Math.random() * 7 + 4,
-            color: colors[Math.floor(Math.random() * colors.length)],
-            speedY: Math.random() * 3 + 2,
-            speedX: Math.random() * 2 - 1,
-            rotation: Math.random() * 360,
-            rotSpeed: Math.random() * 6 - 3
-          });
-        }
-      }
-
-      function createFirework() {
-        const targetX = Math.random() * (canvas.width * 0.8) + canvas.width * 0.1;
-        const targetY = Math.random() * (canvas.height * 0.4) + canvas.height * 0.1;
-        const color = colors[Math.floor(Math.random() * colors.length)];
+      // Laisser le temps à Safari iOS de calculer les dimensions du Canvas
+      setTimeout(() => {
+        const canvas = document.getElementById('celebration-canvas');
+        if (!canvas) return;
         
-        for (let i = 0; i < 40; i++) {
-          const angle = (Math.PI * 2 / 40) * i;
-          const speed = Math.random() * 4 + 2;
-          fireworks.push({
-            x: targetX,
-            y: targetY,
-            vx: Math.cos(angle) * speed,
-            vy: Math.sin(angle) * speed,
-            alpha: 1,
-            size: Math.random() * 3 + 2,
-            color: color
-          });
+        const ctx = canvas.getContext('2d');
+        const w = window.innerWidth || document.documentElement.clientWidth;
+        const h = window.innerHeight || document.documentElement.clientHeight;
+        
+        canvas.width = w;
+        canvas.height = h;
+
+        const type = Math.floor(Math.random() * 3);
+        const colors = ['#10b981', '#f97316', '#ec4899', '#8b5cf6', '#3b82f6', '#eab308', '#ef4444'];
+        
+        let particles = [];
+        let fireworks = [];
+
+        if (type === 0 || type === 2) {
+          for (let i = 0; i < 75; i++) {
+            particles.push({
+              x: Math.random() * w,
+              y: Math.random() * h - h,
+              size: Math.random() * 6 + 4,
+              color: colors[Math.floor(Math.random() * colors.length)],
+              speedY: Math.random() * 3 + 2,
+              speedX: Math.random() * 2 - 1,
+              rotation: Math.random() * 360,
+              rotSpeed: Math.random() * 6 - 3
+            });
+          }
         }
-      }
 
-      let fireworkTimer = 0;
-
-      function loop() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        // Animer Confettis
-        particles.forEach(p => {
-          p.y += p.speedY;
-          p.x += p.speedX;
-          p.rotation += p.rotSpeed;
-
-          if (p.y > canvas.height) {
-            p.y = -10;
-            p.x = Math.random() * canvas.width;
+        function createFirework() {
+          const targetX = Math.random() * (w * 0.8) + w * 0.1;
+          const targetY = Math.random() * (h * 0.4) + h * 0.1;
+          const color = colors[Math.floor(Math.random() * colors.length)];
+          
+          for (let i = 0; i < 35; i++) {
+            const angle = (Math.PI * 2 / 35) * i;
+            const speed = Math.random() * 4 + 2;
+            fireworks.push({
+              x: targetX,
+              y: targetY,
+              vx: Math.cos(angle) * speed,
+              vy: Math.sin(angle) * speed,
+              alpha: 1,
+              size: Math.random() * 3 + 2,
+              color: color
+            });
           }
+        }
 
-          ctx.save();
-          ctx.translate(p.x, p.y);
-          ctx.rotate((p.rotation * Math.PI) / 180);
-          ctx.fillStyle = p.color;
-          ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
-          ctx.restore();
-        });
+        let fireworkTimer = 0;
 
-        // Animer Feux d'artifice
-        if (type === 1 || type === 2) {
-          fireworkTimer++;
-          if (fireworkTimer % 25 === 0) {
-            createFirework();
-          }
+        function updateFrame() {
+          ctx.clearRect(0, 0, w, h);
 
-          for (let i = fireworks.length - 1; i >= 0; i--) {
-            let f = fireworks[i];
-            f.x += f.vx;
-            f.y += f.vy;
-            f.vy += 0.04; // Gravité
-            f.alpha -= 0.015;
+          // Animer Confettis
+          particles.forEach(p => {
+            p.y += p.speedY;
+            p.x += p.speedX;
+            p.rotation += p.rotSpeed;
 
-            if (f.alpha <= 0) {
-              fireworks.splice(i, 1);
-              continue;
+            if (p.y > h) {
+              p.y = -10;
+              p.x = Math.random() * w;
             }
 
             ctx.save();
-            ctx.globalAlpha = f.alpha;
-            ctx.fillStyle = f.color;
-            ctx.beginPath();
-            ctx.arc(f.x, f.y, f.size, 0, Math.PI * 2);
-            ctx.fill();
+            ctx.translate(p.x, p.y);
+            ctx.rotate((p.rotation * Math.PI) / 180);
+            ctx.fillStyle = p.color;
+            ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
             ctx.restore();
+          });
+
+          // Animer Feux d'artifice
+          if (type === 1 || type === 2) {
+            fireworkTimer++;
+            if (fireworkTimer % 20 === 0) {
+              createFirework();
+            }
+
+            for (let i = fireworks.length - 1; i >= 0; i--) {
+              let f = fireworks[i];
+              f.x += f.vx;
+              f.y += f.vy;
+              f.vy += 0.05;
+              f.alpha -= 0.02;
+
+              if (f.alpha <= 0) {
+                fireworks.splice(i, 1);
+                continue;
+              }
+
+              ctx.save();
+              ctx.globalAlpha = f.alpha;
+              ctx.fillStyle = f.color;
+              ctx.beginPath();
+              ctx.arc(f.x, f.y, f.size, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.restore();
+            }
           }
         }
 
-        animationFrameId = requestAnimationFrame(loop);
-      }
-
-      loop();
+        // Utilisation d'un setInterval à ~30 FPS pour forcer le rendu sur Safari iOS Standalone
+        animationIntervalId = setInterval(updateFrame, 1000 / 30);
+      }, 150);
     }
 
     function getSortedHand(hand) {
@@ -367,7 +372,7 @@
           <div class="flex justify-between items-center my-3">
             <button onclick="state.screen='settings'; render(); window.scrollTo(0,0);" class="p-2 rounded-full ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-200 text-gray-700'}">⚙</button>
             <h1 class="text-2xl font-bold text-emerald-500">FLIP 7</h1>
-            <button onclick="toggleTheme()" class="p-2 rounded-full ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-200 text-gray-700'}">${isDark ? '☀️️' : '🌙'}</button>
+            <button onclick="toggleTheme()" class="p-2 rounded-full ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-200 text-gray-700'}">${isDark ? '☀️' : '🌙'}</button>
           </div>
           <div class="flex-1 flex flex-col justify-center space-y-4 my-8">
             <div class="text-center mb-6">
@@ -421,7 +426,6 @@
             <div></div>
           </div>
 
-          <!-- Liste des Joueurs -->
           <div class="space-y-2 mb-2 flex-1 overflow-y-auto ${state.showKeypad ? 'max-h-[42vh]' : 'max-h-[76vh]'} transition-all duration-300">
             ${sortedPlayers.map(p => {
               let sortedHand = getSortedHand(p.hand);
@@ -459,7 +463,6 @@
             </button>
           </div>
 
-          <!-- Pavé de Saisie Compact -->
           ${state.showKeypad ? `
             <div class="${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} rounded-t-2xl p-3 shadow-2xl -mx-3 -mb-6 border-t transition-all">
               <div class="flex justify-between items-center mb-2">
@@ -473,7 +476,6 @@
                 <button onclick="state.showKeypad=false; render()" class="text-xs opacity-50 px-2 py-0.5">✕</button>
               </div>
 
-              <!-- Cartes numérotées -->
               <div class="grid grid-cols-6 gap-1.5 mb-2">
                 ${[0,1,2,3,4,5,6,7,8,9,10,11,12].map(num => {
                   let isPickedByActive = activeP.hand.includes(num);
@@ -491,7 +493,6 @@
                 }).join('')}
               </div>
 
-              <!-- Modificateurs -->
               <div class="grid grid-cols-6 gap-1.5 mb-2.5">
                 ${['+2','+4','+6','+8','+10','x2'].map(mod => {
                   let isPickedByActive = activeP.hand.includes(mod);
@@ -521,8 +522,7 @@
       } else if (state.screen === 'victory') {
         let sorted = [...state.players].sort((a, b) => b.totalScore - a.totalScore);
         app.innerHTML = `
-          <!-- Canvas de Célébration (Confettis/Feux d'artifice) -->
-          <canvas id="celebration-canvas" class="fixed inset-0 pointer-events-none z-10"></canvas>
+          <canvas id="celebration-canvas" class="fixed inset-0 pointer-events-none z-10 w-full h-full"></canvas>
 
           <div class="flex-1 flex flex-col justify-center items-center text-center my-6 z-20 relative">
             <div class="text-6xl mb-3 animate-bounce">🎉</div>
@@ -543,8 +543,7 @@
             <button onclick="state.screen='home'; render(); window.scrollTo(0,0);" class="w-full py-3 ${isDark ? 'bg-gray-800 text-gray-300' : 'bg-gray-200 text-gray-700'} font-semibold rounded-2xl">Retour à l'accueil</button>
           </div>
         `;
-        // Lancer la fête !
-        setTimeout(startCelebrationAnimation, 50);
+        startCelebrationAnimation();
       } else if (state.screen === 'standings') {
         let entries = Object.entries(state.leaderboard).sort((a, b) => b[1] - a[1]);
         app.innerHTML = `
